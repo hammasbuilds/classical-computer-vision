@@ -291,7 +291,7 @@ reference, and that number is an *assumption*, not a measurement.
 ## Run it yourself
 
 ```bash
-git clone https://github.com/hammas159/classical-computer-vision.git
+git clone https://github.com/hammasbuilds/classical-computer-vision.git
 cd classical-computer-vision/projects/09_coin_counting
 ```
 

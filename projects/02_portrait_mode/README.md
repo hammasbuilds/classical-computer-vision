@@ -310,7 +310,7 @@ output pixel is then an average of background pixels only. It costs **29 ms**.
 ## Run it yourself
 
 ```bash
-git clone https://github.com/hammas159/classical-computer-vision.git
+git clone https://github.com/hammasbuilds/classical-computer-vision.git
 cd classical-computer-vision/projects/02_portrait_mode
 
 python -m venv .venv && .venv/Scripts/activate       # Windows

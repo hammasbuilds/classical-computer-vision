@@ -222,7 +222,7 @@ all. Each ✅ row is reproducible with `python run.py` inside the project.
 ## Quick start
 
 ```bash
-git clone https://github.com/hammas159/classical-computer-vision.git
+git clone https://github.com/hammasbuilds/classical-computer-vision.git
 cd classical-computer-vision
 
 python -m venv .venv && .venv/Scripts/activate       # Windows

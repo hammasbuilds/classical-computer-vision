@@ -216,7 +216,7 @@ is exactly the point of the transfer table above.)
 ## Run it yourself
 
 ```bash
-git clone https://github.com/hammas159/classical-computer-vision.git
+git clone https://github.com/hammasbuilds/classical-computer-vision.git
 cd classical-computer-vision/projects/13_denoising_shootout
 ```
 

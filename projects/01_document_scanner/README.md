@@ -302,7 +302,7 @@ costs microseconds.
 
 ```bash
 # clone
-git clone https://github.com/hammas159/classical-computer-vision.git
+git clone https://github.com/hammasbuilds/classical-computer-vision.git
 cd classical-computer-vision/projects/01_document_scanner
 
 # install (~60 MB, no model weights, no dataset)
