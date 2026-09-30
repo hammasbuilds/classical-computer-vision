@@ -145,7 +145,7 @@ a broken sample; it is the entire finding.
 **Jump to:** [What it does](#what-it-does) · 
 [Results](#results) ·
 [Run it](#run-it-yourself) · [Inference](#inference-count-your-own-photo) ·
-[How it works](#how-it-works) · [Problems solved](#problems-hit-and-how-they-were-solved) ·
+[How it works](#how-it-works) ·
 [Limitations](#limitations) · [Keywords](#keywords)
 
 ---
@@ -179,7 +179,6 @@ Three things this separates that a segmentation demo runs together:
 | the **pixels** from the **millimetres** | The pixel answer is measured. The millimetre answer is measured *times an assumption*. |
 
 ---
-
 
 
 ## Results
@@ -393,142 +392,6 @@ coin's radius.
 circle with the same area — is used rather than a bounding box, because it is far
 more stable for a roughly round object. One known reference sets `mm/px`, and
 every other object is scaled by it.
-
----
-
-## Problems hit, and how they were solved
-
-Every entry is a real defect in this project's own code, with the symptom that
-exposed it and the measurement that confirmed the fix.
-
-### 1 · Watershed counted 1 coin, at every setting
-
-**Symptom.** The method that exists to separate touching objects returned **1**
-object, and swept across seven values of its seed ratio it returned 1, 1, 1, 1, 1
-— with 13 and 4 at the two lowest. No error, no warning.
-
-**Cause.** Two independent bugs compounding, which is why it took a 2×2 ablation
-to separate them.
-
-*First*, the mask. `skimage.data.coins` is lit unevenly, and the background at
-the top of the frame is **brighter than Otsu's global threshold**. A band of
-empty table was classified as foreground and merged with the entire top row:
-**one component of 13,433 px** where there should have been six coins.
-
-*Second*, the seed rule — the one from the OpenCV tutorial:
-
-```python
-_, sure_fg = cv2.threshold(dist, fg_ratio * dist.max(), 255, 0)
-```
-
-`dist.max()` is the single deepest point in the whole image. With a 13,433 px
-blob in the picture, `0.55 × dist.max()` is deeper than any real coin's centre,
-so every other coin's local peak was erased and one seed survived.
-
-**Fix** — [`src/coins.py:93`](src/coins.py#L93) for the mask and
-[`src/coins.py:176`](src/coins.py#L176) for the seeds:
-
-```python
-return cv2.morphologyEx(gray, cv2.MORPH_TOPHAT, se)   # flatten the illumination
-```
-
-```python
-peaks = ((dist >= dilated - 1e-6) & (dist >= min_radius_px)).astype(np.uint8) * 255
-```
-
-**Result: 1 → 24 of 24.** And the ablation showed the two fixes are *not*
-interchangeable — local-maxima seeding reaches 24 even on the unfixed mask,
-while the tutorial rule needs the mask repaired first. That comparison became
-the project's headline, and it only exists because the two fixes were tested
-separately instead of together.
-
-### 2 · A round-number area filter threw away two correct answers
-
-**Symptom.** With the seeding fixed, watershed produced **exactly 24 labels** —
-one per coin, verified by eye — and `count_coins` reported **22**.
-
-**Cause.** `region_properties(labels, min_area=250)`. Two of the 24 basins were
-136 px and 247 px, both under a cutoff that had been chosen to be "obviously
-small". The segmentation had already got the answer right and the filter threw it
-away.
-
-**Fix** — [`src/coins.py:248`](src/coins.py#L248) — derive the floor from a
-quantity that means something:
-
-```python
-MIN_COIN_RADIUS_PX = 6.0
-MIN_COIN_AREA_PX = int(np.pi * MIN_COIN_RADIUS_PX**2)  # 113
-```
-
-**Result: 22 → 24.** Pinned by `test_the_area_floor_must_not_discard_real_regions`,
-which asserts that the label image contains exactly 24 regions *and* that a
-`min_area` of 250 loses some of them — so the bug cannot come back as a
-"cleanup".
-
-### 3 · The top-hat fixed the background and broke the coins
-
-**Symptom.** After flattening the illumination, the count went from 25 to **21**.
-The mask images showed the background band gone — and several coins now broken
-into two or three pieces.
-
-**Cause.** Flattening costs contrast *inside* the darker coins, so their
-thresholded masks came back fragmented. Each fragment is a region, each region is
-either a coin or discarded, and either way the count is wrong.
-
-**Fix** — [`src/coins.py:45`](src/coins.py#L45) and
-[`src/coins.py:59`](src/coins.py#L59) — a larger elliptical closing to rejoin the
-pieces, then fill every enclosed hole by redrawing the outer contours solid:
-
-```python
-contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-```
-
-**Result: 21 → 24.** The hole filling matters for a second reason — a hole inside
-a coin is a spurious local maximum in the distance transform, and with
-local-maxima seeding that is a spurious coin.
-
-### 4 · Watershed flooded the background and labelled it
-
-**Symptom.** Region areas included a 13,000 px "object" that was clearly the
-table.
-
-**Cause.** `cv2.watershed` partitions the *entire image*. Every pixel gets a
-label, including the background basin, and nothing in the returned marker image
-distinguishes "coin #7" from "the table".
-
-**Fix** — [`src/coins.py:194`](src/coins.py#L194), one line:
-
-```python
-labels[mask == 0] = 0
-```
-
-Obvious in hindsight, and the kind of thing that produces a plausible-looking
-count for a long time before anyone checks the areas.
-
-### 5 · Two tests asserted arithmetic I had not done
-
-**Symptom.**
-
-```
-assert np.uint64(896835) > (3.0 * np.uint64(336600))
-assert (29 - 1) > (2 * (21 - 1))
-```
-
-**Cause.** In the first, I asserted a filled disc would be more than 3× its own
-6 px rim. A radius-30 circle has area 2827 px and a 6 px rim has ~1131 px, so the
-true ratio is 2.5. In the second I asserted a too-small top-hat kernel would more
-than double the component count; it goes from 20 to 28, because the closing
-partially repairs the rings.
-
-**Fix.** The first now asserts the ratio the geometry actually gives *and* that
-the filled area matches `π r²`. The second asserts the thing that is genuinely
-broken — **foreground area falls from 32% to 21%**, because the kernel is
-subtracting the coins' own interiors — rather than a proxy I had guessed at.
-
-Both are the same mistake: asserting a number I expected instead of one I had
-measured. It is cheap to catch here and expensive to catch in a README.
-
----
 
 ## Limitations
 

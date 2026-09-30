@@ -72,7 +72,7 @@ stated as a picture:
 
 ---
 
-## Three findings the tables were changed to expose
+## What the tables show
 
 ### 1 · Raw PSNR scored a brightness decision, not a sharpening one
 
@@ -178,59 +178,6 @@ rows** — four rows showing two subjects, which is a comparison of *conditions*
 dressed up as a comparison of pictures.
 
 ![Methods × metrics](docs/images/method_matrix.png)
-
----
-
-## Problems hit, and how they were solved
-
-### 1 · The oracle was beaten by a 3×3 kernel — twice, for two different reasons
-
-**First**, `deconvolve_oracle` ran at a fixed `nsr = 0.01`. At that setting the
-Wiener result scored **32.86 dB** while a plain Laplacian reached **33.28** — a
-"ceiling" under the thing it bounds, which is worse than no ceiling. An oracle
-is allowed to use the ground truth; that is what makes it an oracle.
-`deconvolve_oracle_best` now sweeps `nsr` over six decades. Fixed-nsr Wiener is
-a *method*, not a ceiling.
-
-**Second**, and less visibly: the FFT treats an image as periodic, so the last
-row was deconvolved as though the first row were its neighbour. On `elk_water` —
-bright sky at the top, dark water at the bottom — that seam is a step edge the
-height of the frame, and its ringing spread across the picture. The oracle
-scored **30.68 dB against the 30.84 dB blurred image it had been handed**, below
-its own floor, while a 3×3 Laplacian reached 32.33.
-
-Averaged over six photographs this appeared as the oracle trailing the Laplacian
-by **0.04 dB** — indistinguishable from rounding, and it sat in the results table
-unnoticed. Checking each image *separately* is what exposed it. Reflect-padding
-before the transform fixes it (34.41 dB on that image), and the oracle went from
-29.81 dB to **31.90 dB** overall — it had been understating the ceiling on all
-six. Pinned by `test_the_oracle_is_a_ceiling_over_every_method`, which now
-asserts per image rather than on the mean.
-
-### 2 · The oracle was scored on a third as much
-
-It deconvolved in **grayscale** and was scored against a grayscale reference. A
-grayscale reconstruction has one third as much to get wrong, so its PSNR was not
-comparable with any other row in the table — it was flattering itself by a
-margin nobody had measured. It now runs per channel. Pinned by
-`test_the_oracle_is_scored_on_the_same_thing_as_the_methods`.
-
-### 3 · `--amount` was silently driving high-boost off a cliff
-
-In `infer.py`, `--amount` was passed positionally to every method. High-boost's
-second parameter is `boost`, a *different quantity* — `A = 1.0` is a pure
-high-pass, i.e. a nearly black image. The default `--amount 1.0` therefore
-turned that row into noise (4.65 dB, SSIM 0.005) and it read as a property of
-high-boost. Methods are now matched by parameter *name*.
-
-### 4 · A claim in the docstring that the measurements contradicted
-
-`sharpen_laplacian_wrong_sign` was documented as "This *blurs*". It does not, on
-a sharp image — see finding 2. The docstring was written from the textbook, the
-number came from the code, and the code was right. Corrected rather than left
-standing.
-
----
 
 ## Try it on your own image
 

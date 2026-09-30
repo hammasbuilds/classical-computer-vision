@@ -84,41 +84,6 @@ printed in the figure's own headers.
 > rotation-invariant. At the worst angle for a square-sampled operator, that
 > trade pays.
 
----
-
-## Two ways this experiment was wrong before it was right
-
-Both produced tables that looked completely reasonable.
-
-### Degrading both sides of the comparison measures nothing
-
-The first version degraded every patch and ran leave-one-out. Nearest-neighbour
-matching is invariant to anything that moves every sample the same way, so a
-global brightness change cost **nothing at all** — not even to the raw intensity
-histogram, which has no such invariance:
-
-| Protocol | Raw histogram under a 0.6 relight |
-|---|---:|
-| Degrade everything, leave-one-out | **0.785** — "invariant" |
-| Degrade the probes only, clean gallery | **0.111** |
-
-The first number is real. The experiment is empty. Pinned by
-`test_degrading_both_sides_of_the_comparison_measures_nothing`.
-
-### A rotation that was really a relocation
-
-The second version rotated the plate and cut the probe at the same *coordinates*
-— which is a different piece of surface. A 90° rotation appeared to **raise**
-LBP's accuracy from 0.674 to 0.847. Cutting the same region un-rotated scored
-0.889, so the gain was the crop, not the angle.
-
-The crop centre is now carried through the same matrix that warps the plate, so
-a rotated probe is the same surface turned. Writing the test for that found a
-third bug: the warp rotated about `w/2` while an exact flip is about `(w−1)/2`,
-putting every rotated patch one pixel out.
-
----
-
 ## Choosing the operating point instead of assuming one
 
 ![Patch size sweep](docs/images/patch_size_sweep.png)

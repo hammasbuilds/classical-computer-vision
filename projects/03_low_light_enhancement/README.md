@@ -24,7 +24,7 @@ training, no GPU, no dataset download.**
 **Jump to:** [What it does](#what-it-does) · 
 [Input & output](#input--output) ·
 [Results](#results) · [Run it](#run-it-yourself) · [Inference](#inference-try-it-on-your-own-image) ·
-[How it works](#how-it-works) · [Problems solved](#problems-hit-and-how-they-were-solved) ·
+[How it works](#how-it-works) ·
 [Limitations](#limitations) · [Keywords](#keywords)
 
 ---
@@ -51,7 +51,6 @@ The degradation is **generated**, so the original is known exactly:
 | Output | the true original | PSNR and SSIM are real, not proxies |
 
 ---
-
 
 
 ## Input & output
@@ -120,7 +119,7 @@ dark photo" is false in a specific, checkable way.
 
 ![Gamma sweep](docs/images/gamma_sweep.png)
 
-### The finding a mean destroys
+### What a mean destroys
 
 The adaptive gamma method estimates its own exponent by assuming a well-exposed
 photograph averages mid-grey. Per image, at gamma 3.0:
@@ -287,185 +286,6 @@ round-trip, which is the entire point.
 All operate on **luminance only** (YCrCb Y channel) where applicable. Equalising
 R, G and B independently shifts the colour balance and produces the lurid output
 people associate with HE; keeping chroma intact is the fair version.
-
----
-
-## Problems hit, and how they were solved
-
-Each gives the **symptom**, the **file and line**, the **code that was wrong** and
-the **code that replaced it**.
-
-| # | Symptom | Where | Cost |
-|---:|---|---|---|
-| 1 | MSRCR output sign-flipped in shadows | [`src/low_light.py:224`](src/low_light.py#L224) | method looked broken, wasn't |
-| 2 | Retinex scored 8 dB, looked fine | [`src/low_light.py:330`](src/low_light.py#L330) | wrong metric, not wrong method |
-| 3 | A magic constant was the only gamma | [`src/low_light.py:63`](src/low_light.py#L63) | measured luck, not the family |
-| 4 | Exposure matching undershot by 0.025 | [`src/low_light.py:376`](src/low_light.py#L376) | same size as the differences compared |
-| 5 | Auto-gamma 29× slower than the method it beats | [`src/low_light.py:104`](src/low_light.py#L104) | 324 ms → 37.5 ms |
-| 6 | The speedup silently broke the estimate | [`src/low_light.py:118`](src/low_light.py#L118) | **−4.6 dB**, caught by verifying |
-
----
-
-### 1 · MSRCR's colour restoration flipped the sign of every shadow pixel
-
-**Symptom:** MSRCR output was dark, colour-shifted garbage. SSIM **0.13**.
-
-The textbook form of the colour restoration term is:
-
-```python
-# WRONG - a log of a near-zero ratio
-restoration = beta * (np.log(alpha * f) - np.log(f.sum(axis=2, keepdims=True)))
-```
-
-For a near-black pixel `f → 0`, so `log(alpha * f) → log(eps) = −13.8`, and
-multiplied by `beta = 46` that is **−640**. Every shadow pixel came out
-massively negative and the sign flipped.
-
-**Fix — `src/low_light.py:224`**
-
-```python
-# RIGHT - a bounded form: log1p of a ratio that is already clipped to [0, 1]
-total = f.sum(axis=2, keepdims=True) + EPS
-ratio = np.clip(f / total, 0.0, 1.0)
-restoration = beta * np.log1p(alpha * ratio)   # >= 0 everywhere, cannot explode
-```
-
-Guarded by a test that feeds it a pure-black image and asserts the restoration
-term is non-negative and finite everywhere.
-
-### 2 · Retinex looked broken, and the metric was at fault
-
-**Symptom:** SSR scored **7.97 dB** — worse than several methods that plainly look
-worse. The output was clearly recovering detail.
-
-Retinex estimates **reflectance**, not exposure. Its output is correct up to a
-global brightness scale, and PSNR punishes that scale heavily.
-
-**Fix — `src/low_light.py:330`, report both, never just one**
-
-```python
-"psnr_db":          round(float(np.mean(a["psnr"])), 3),
-# Retinex estimates reflectance, not exposure. Raw PSNR therefore scores it on
-# a global brightness offset rather than on recovered detail. Both columns are
-# reported so the reader can see which part of the score is the method and
-# which part is the metric.
-"psnr_matched_db":  round(float(np.mean(a["psnr_matched"])), 3),
-```
-
-**7.97 dB → 14.71 dB** from changing nothing but the comparison.
-
-### 3 · A single magic constant was the only representative of its family
-
-**Symptom:** `Gamma 1/2.2` won the comparison. But 1/2.2 is a *constant*, and it
-is the **exact** inverse when the scene was darkened by 2.2 — which is one of the
-sweep's own levels.
-
-Verified directly: at gamma 2.2 with no noise, the fixed curve scores exactly
-what the oracle scores, to two decimal places, **because it is the oracle there**.
-
-```python
-def test_fixed_gamma_equals_the_oracle_at_its_own_gamma():
-    dark = synth.low_light(clean, gamma=2.2, noise_sigma=0.0, seed=0)
-    assert psnr(ll.enhance_gamma(dark), clean) == pytest.approx(
-        psnr(ll.enhance_oracle(dark, 2.2), clean), abs=0.01
-    )
-```
-
-This is exactly the problem project 01 hit from the other direction, where a
-magic number made a method look *worse* than it was.
-
-**Fix — `src/low_light.py:63`, add a method that estimates instead of assuming**
-
-```python
-def enhance_gamma_auto(img, target_brightness=AUTO_TARGET_BRIGHTNESS):
-    """Power-law curve whose exponent is ESTIMATED from the image.
-
-    Needs no ground truth -- only the assumption that a well-exposed photograph
-    averages near mid-grey, which is what every camera's auto-exposure assumes.
-    """
-    return to_uint8(np.power(to_float(img), estimate_exponent(img, target_brightness)))
-```
-
-That produced the project's second finding — the adaptive method is better *and*
-worse than the constant, depending entirely on whether its assumption holds, and
-the average of those two facts is a third number that describes neither.
-
-### 4 · Exposure matching systematically undershot
-
-**Symptom:** a test asserting that exposure matching equalises mean brightness
-failed by **0.025** — the same order as the differences between the methods being
-compared.
-
-```python
-# WRONG - scale by the ratio of means
-return to_uint8(p * (target_mean / current_mean))
-```
-
-The result is **clipped** to [0, 1]. Scaling up saturates the highlights, which
-pulls the mean back down, so the naive ratio always undershoots.
-
-**Fix — `src/low_light.py:376`, solve for the scale that survives clipping**
-
-```python
-# bisect for the factor that hits the target AFTER clipping
-lo, hi = 0.0, 32.0
-for _ in range(40):
-    mid = 0.5 * (lo + hi)
-    if float(np.clip(p * mid, 0.0, 1.0).mean()) < target:
-        lo = mid
-    else:
-        hi = mid
-```
-
-### 5 · The new method was 29× slower than the one it was meant to improve on
-
-**Symptom:** `Gamma (auto-estimated)` took **324 ms** against the fixed curve's
-**11 ms**. The bisection raised every one of 300,000 pixels to a power, 40 times.
-
-**Fix — `src/low_light.py:104`** — the estimator only needs the image's *mean*
-under a candidate exponent, and a mean is exactly what a subsample estimates well:
-
-```python
-#: Measured: 324 ms -> 37.5 ms, recovered exponent unchanged to 2 decimal places.
-ESTIMATE_SAMPLE_PX = 20_000
-```
-
-A **deterministic stride**, not a random sample — the same image must always
-produce the same estimate or nothing downstream is reproducible.
-
-### 6 · The speedup silently broke the estimate, and only verifying caught it
-
-**Symptom:** none. Tests passed. The code ran 17× faster.
-
-The estimate had moved from **3.24 to 1.74** and PSNR had dropped **21.78 → 17.17**.
-
-```python
-# WRONG - flatten, then stride
-f = to_float(img).ravel()
-f = f[:: max(1, f.size // ESTIMATE_SAMPLE_PX)]
-```
-
-Flattening an `(H, W, 3)` image interleaves `R,G,B,R,G,B…`. **Any stride that is a
-multiple of 3 samples a single colour channel** — so the estimator was computing
-the mean of, effectively, the red channel alone.
-
-**Fix — `src/low_light.py:118`, stride over pixels rather than over values**
-
-```python
-# Stride over PIXELS, not over raw values.
-flat = f.reshape(-1, f.shape[-1]) if f.ndim == 3 else f.reshape(-1, 1)
-if flat.shape[0] > ESTIMATE_SAMPLE_PX:
-    flat = flat[:: max(1, flat.shape[0] // ESTIMATE_SAMPLE_PX)]
-```
-
-Verified against full-resolution estimates on all six images: **maximum
-disagreement 0.02**, and PSNR restored to 21.774.
-
-**This bug produced no error, no warning, and no failing test.** It was found only
-by re-measuring the thing the optimisation was supposed to leave unchanged —
-which is the habit, not the luck.
-
----
 
 ## Limitations
 

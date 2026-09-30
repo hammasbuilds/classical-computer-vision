@@ -111,7 +111,7 @@ invented for an image that has no answer.
 **Jump to:** [Results](#results) · [What it does](#what-it-does) · 
 [Full tables](#full-results-tables) ·
 [Run it](#run-it-yourself) · [Inference](#inference-try-it-on-your-own-image) ·
-[How it works](#how-it-works) · [Problems solved](#problems-hit-and-how-they-were-solved) ·
+[How it works](#how-it-works) ·
 [Limitations](#limitations) · [Keywords](#keywords)
 
 ---
@@ -141,7 +141,6 @@ clearer" is satisfied by any histogram stretch; recovering `t` is only satisfied
 by actually inverting the scattering.
 
 ---
-
 
 
 ## Full results tables
@@ -183,7 +182,7 @@ and the oracle — handed the true transmission map — gains **+37.72 dB**.
    the transmission estimate, not the inversion: with the true `t`, the same
    inversion code reaches 50.8 dB.
 
-### The finding: a better estimate, a worse image
+### Result: a better estimate, a worse image
 
 ![Transmission](docs/images/transmission.png)
 
@@ -358,103 +357,6 @@ The margin **grew from +0.86 dB to +2.23 dB** on images the sweep never saw.
 That is the outcome a tuning exercise is supposed to have and frequently does
 not — these are four constants fitted on four images, which is exactly the shape
 of a result that evaporates on new data. It did not.
-
----
-
-## Problems hit, and how they were solved
-
-| # | Symptom | Where | Cost |
-|---:|---|---|---|
-| 1 | Best method 32 dB below the oracle | [`src/dehazing.py:48`](src/dehazing.py#L48) | 18.64 → 19.50 dB |
-| 2 | Airlight = **1.000** on a real scene | [`src/dehazing.py:74`](src/dehazing.py#L74) | a floodlight called "sky" |
-| 3 | Fixing #2 made the output **worse** | [`src/dehazing.py`](src/dehazing.py) | the project's finding |
-| 4 | Markdown table rendered as broken columns | [`run.py`](run.py) | `\|A error\|` — pipes inside a cell |
-| 5 | Benchmark scenes had no depth structure | [`src/dehazing.py:248`](src/dehazing.py#L248) | measured a haze model on a retina scan |
-
-### 1 · The defaults came from the paper, not from this data
-
-The first run put the best method **32.16 dB** below the oracle, with visible
-blocking in the sky. Rather than accept the paper's constants, all four were
-swept — 162 combinations, six images:
-
-```text
- omega  patch  radius     eps   tmin    PSNR   SSIM    tMAE
-  0.95     15      40   1e-03   0.10   18.64  0.852  0.1142   <- paper defaults
-  0.80      7      40   1e-02   0.05   19.50  0.872  0.1059   <- measured best
-```
-
-**+0.86 dB and +0.02 SSIM**, and visibly closer to the original because a 7 px
-patch blocks far less than a 15 px one.
-
-### 2 · The airlight estimator picked a floodlight and called it sky
-
-The docstring claims the method avoids exactly this:
-
-> *Picking the single brightest pixel is the usual shortcut and it is wrong: a
-> white car or a specular highlight is brighter than the sky.*
-
-It does restrict the search to the haziest region — and then takes the brightest
-pixel **within** it, which on the launch-pad scene from the original benchmark is
-a floodlight:
-
-```text
-273 candidates, 12 of them saturated
-chosen = brightest = [1.0, 1.0, 1.0]          <- pure white, a floodlight
-median of candidates = [0.847, 0.804, 0.729]  <- close to the true 0.88
-```
-
-### 3 · Fixing it made the result worse
-
-The obvious repair — take the median, or exclude saturated pixels — produces a
-**better airlight, a better transmission map, and a worse image**. Measured, in
-the table above. The default was therefore left alone and the finding documented,
-because the honest response to a counter-intuitive measurement is to report it,
-not to quietly pick whichever configuration flatters the story.
-
-### 4 · A markdown table that rendered as garbage
-
-The airlight column was headed `|A error|` — mathematical notation for absolute
-value. A pipe inside a markdown cell **terminates the cell**, so the header split
-into two broken columns and every row misaligned. Renamed to `Airlight error`.
-Small, but it silently corrupts a published table.
-
-### 5 · The benchmark was six images, and four of them had no depth
-
-The original scene list was scikit-image's bundled samples:
-
-```python
-# WRONG - these are the samples that happened to be available
-IMAGES = ("rocket", "coffee", "astronaut", "chelsea", "immunohistochemistry", "retina")
-```
-
-Haze depends on **exactly one** physical quantity: distance. A retina scan, a
-microscope slide, a cat's face and a coffee cup have essentially no depth range,
-so `t(x) = exp(−β·d(x))` is close to a constant across the frame and a
-transmission *map* has nothing to be right or wrong about. Four of the six images
-could not exercise the thing being measured.
-
-```python
-# RIGHT - chosen for depth structure, which is the only variable haze depends on
-IMAGES = ("old_street", "mountain_stream", "lighthouse_cliff",
-          "stone_house", "tropical_island", "moored_boat")
-```
-
-Three numbers moved when the scenes did, and all three are reported above rather
-than silently updated:
-
-| | Old scenes | New scenes |
-|---|---:|---:|
-| Best method | 19.50 dB | **22.49 dB** |
-| Tuned-vs-paper margin | +0.86 dB | **+2.23 dB** |
-| "Better estimate, worse image" effect | 1.00 dB | **0.06 dB** |
-
-The first two improved. **The third — this project's headline finding — shrank by
-94%**, because it was largely driven by one image whose airlight estimate
-saturated on a floodlight. The direction held across all three estimators, so the
-finding survives; its size did not, and claiming the old magnitude on the new data
-would have been the easiest kind of dishonesty to get away with.
-
----
 
 ## Limitations
 

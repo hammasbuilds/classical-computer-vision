@@ -78,7 +78,7 @@ answer and distance from it is the error:
 
 ---
 
-## Three findings
+## Results
 
 ### 1 · Entropy is blind to a 9 dB improvement
 
@@ -184,44 +184,6 @@ None of these twelve appears in any other project; `tools/check_image_reuse.py`
 enforces that by perceptual hash, not by filename.
 
 ![Methods × metrics](docs/images/method_matrix.png)
-
----
-
-## Problems hit, and how they were solved
-
-### 1 · The project had no ceiling, so "everything loses" had no explanation
-
-Without the oracle the table says every method scores near or below the
-untouched image, and there are two completely different reasons that could be
-true: the methods are bad, or the degradation destroyed the information. Those
-call for opposite conclusions and the numbers alone cannot separate them.
-
-`eq_match_oracle` matches the histogram of the **clean original**, which is the
-same operation as the `Histogram matching` row with the guesswork removed. At
-24.53 dB against the best method's 15.94 it settles the question: the
-information survived, and the family can reach it. The methods are picking the
-wrong curve.
-
-### 2 · A test asserted a finding that held on 5 of 11 images
-
-The first version of `test_flattening_the_histogram_is_not_the_goal` asserted
-that the oracle's output has **lower** entropy than global HE's — tidy, and true
-on the image it was written against. Across all eleven it holds on **5**.
-
-It was replaced with the claim that survives every image: the oracle gains 9 dB
-while entropy moves by hundredths of a bit. That is a weaker-sounding statement
-and a much stronger result, because it says entropy is not merely mis-ranking
-things, it is not measuring them at all.
-
-### 3 · The images were the four scikit-image samples again
-
-`IMAGES` was `("moon", "coffee", "chelsea", "astronaut", "camera", "retina")` —
-the same pictures as several other projects, chosen for nothing in particular.
-Two of the six are grayscale, which makes the colour-cast question unaskable,
-and none of them was picked for tone distribution, which is the only axis this
-project acts on.
-
----
 
 ## Try it on your own image
 

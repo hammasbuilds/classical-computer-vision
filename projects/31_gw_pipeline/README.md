@@ -120,19 +120,6 @@ Stage (e)'s own kernel size moves dark detail by less than 0.25 across its whole
 range, which is what a parameter belonging to a stage that does nothing should
 look like.
 
----
-
-## A typo used to look like a finding
-
-`run_pipeline(skip=...)` ignored an unrecognised stage name and ran the full
-pipeline instead. An ablation table built with a misspelled stage would show six
-identical rows — which reads as *"no stage contributes anything"*, a conclusion
-rather than a bug report.
-
-It now raises. Pinned by `test_skipping_an_unknown_stage_is_refused`.
-
----
-
 ## How the images were chosen
 
 Twelve photographs selected by `tools/select_images.py --axis brightness --max

@@ -58,7 +58,7 @@ mouth is inside the face box — the upper-60% rule is what keeps it that high.*
 
 ---
 
-## The signature result: a photograph with nothing wrong with it
+## Result: a photograph with nothing wrong with it
 
 ![Clean photographs](docs/images/clean_photographs.png)
 

@@ -111,7 +111,7 @@ method wins is an advertisement.
 **Jump to:** [What it does](#what-it-does) · 
 [Results](#results) ·
 [Run it](#run-it-yourself) · [Inference](#inference-resize-your-own-image) ·
-[How it works](#how-it-works) · [Problems solved](#problems-hit-and-how-they-were-solved) ·
+[How it works](#how-it-works) ·
 [Limitations](#limitations) · [Keywords](#keywords)
 
 ---
@@ -141,8 +141,6 @@ Two design choices carry the measurement:
 found *from* the image — the box of a fixed area holding the most energy, located
 exactly with an integral image. That is "the subject" in precisely the sense the
 algorithm means, which makes it the fair thing to ask seam carving to protect.
-See [Problems hit](#problems-hit-and-how-they-were-solved) for what the synthetic
-scene this replaced was actually measuring.
 
 **The control is arithmetic, not a measurement (amber).** A plain rescale keeps
 every region pixel in proportion and squashes the aspect ratio by exactly
@@ -150,7 +148,6 @@ every region pixel in proportion and squashes the aspect ratio by exactly
 you cannot argue with is worth more than a second sophisticated method.
 
 ---
-
 
 
 ## Results
@@ -229,7 +226,7 @@ average. But look at the *shape* of the two advantages at 70%:
 …and at 20% they were 1.20× and 1.14×. The advantage that grows fastest is the
 one on the algorithm's own objective. It is increasingly good at keeping gradient
 energy, and that increasingly stops meaning the picture is intact — the
-[extreme-reduction gallery](#past-the-point-where-it-works) is what 70% actually
+[extreme-reduction gallery](#how-far-it-holds-up) is what 70% actually
 looks like.
 
 The **rescale aspect column is exactly `1 − reduction`** at every row, which is
@@ -345,150 +342,6 @@ and nothing composited into the photograph.
 The mask goes through the **identical** seam removals as the image, so what
 survives in it is exactly the part of the region the resize kept. That is what
 makes "how much of the subject survived" a measurement rather than an impression.
-
----
-
-## Problems hit, and how they were solved
-
-Every entry is a real defect in this project's own code, with the symptom that
-exposed it and the measurement that confirmed the fix.
-
-### 1 · The test scene measured something seam carving is structurally blind to
-
-**Symptom.** Seam carving preserved **68%** of the tracked object while a plain
-rescale preserved **75.8%**. Carving was *losing* to a resize on the metric the
-project existed to measure, and it was losing everywhere.
-
-**Cause.** The scene was synthetic: a solid red square and a bright green line
-composited into each photograph. Both were the wrong test, for opposite reasons.
-
-* The square was **uniform**. A gradient energy is zero inside a flat region, so
-  the algorithm could not see the object at all and seams ran straight through
-  the middle of it. The experiment was asking whether seam carving protects a
-  region it is structurally blind to.
-* The line was the **highest-energy thing in the frame**, so seams avoided it
-  perfectly. Measured bend: 0.22 px against 0.0 for a plain rescale. Neither
-  number distinguishes anything.
-
-**Fix** — [`src/seam_carving.py:223`](src/seam_carving.py#L223). Nothing is
-pasted in. The region of interest is found *from* the real photograph — the
-fixed-size box holding the most energy, located exactly with an integral image:
-
-```python
-def subject_region(img, energy_fn=energy_gradient, frac: float = 0.16):
-```
-
-**Result:** carving 91.6% against a rescale's 80.0% — a measurement of the method
-rather than of the scene. Pinned by
-`test_a_uniform_region_would_be_invisible_to_a_gradient_energy`, which asserts a
-flat patch has zero gradient in its interior, so nobody re-adds one.
-
-### 2 · A single carve took 3.7 seconds
-
-**Symptom.** Unusable in a UI, and the full experiment set took minutes.
-
-**Cause.** Profiled per seam: energy 1.6 ms, **DP 17.9 ms**, remove 4.3 ms. At
-150 removed columns that is 3.6 s, and the DP was three-quarters of it. The row
-loop is inherently sequential — row `i` needs row `i−1` — so the only thing that
-can be optimised is the per-row constant, and it was allocating four temporaries
-per row (`np.roll` twice, `np.stack`, then an `argmin` plus a fancy index).
-
-**Fix** — [`src/seam_carving.py:126`](src/seam_carving.py#L126). Allocate every
-buffer once, outside the loop, and replace stack+argmin+fancy-index with a chain
-of `np.minimum(..., out=)` plus comparisons:
-
-```python
-left = np.empty(w, np.float32)
-```
-
-**Result: DP 17.9 ms → 5.1 ms**, a 3.5× speed-up on the dominant cost, and a
-carve from 3.7 s to 2.0 s.
-
-### 3 · The "obviously faster" seam removal was slower
-
-**Symptom.** Having fixed the DP, I rewrote `remove_seam`'s per-row Python loop
-as `np.take_along_axis` with an index array — the version that looks like the
-right answer. It came out **slower**: 5.9 ms against the boolean mask's 3.7 ms.
-
-**Cause.** The index array is `h × (w−1)` int32 — four bytes per kept pixel —
-against a one-byte-per-pixel boolean mask. It is more memory traffic, not less,
-and building it either by broadcast-and-copy or by arithmetic made no difference
-(5.94 ms and 5.86 ms).
-
-**Fix** — [`src/seam_carving.py:170`](src/seam_carving.py#L170) — keep the
-boolean mask:
-
-```python
-keep = np.ones((h, w), bool)
-```
-
-Kept in the write-up because it is the more useful kind of result: the
-optimisation that *looks* obviously right, benchmarked, and rejected. The
-measurement is in the docstring so the next person does not repeat it.
-
-### 4 · Every method was scored on its own objective
-
-**Symptom.** The Laplacian row's `energy_kept` read **0.9785** against the
-others' 0.939 — a suspiciously large gap in a table where every other column
-agreed to three decimal places.
-
-**Cause.** `_score_one` measured retained energy with the *same* energy function
-the image had been carved by. The Laplacian row was therefore reporting "how much
-Laplacian energy survives Laplacian-guided carving" — a method marking its own
-homework, and the one number in the table that was not comparable across rows.
-
-**Fix** — [`src/seam_carving.py:309`](src/seam_carving.py#L309) — one fixed
-energy for every row:
-
-```python
-e_kept = float(energy_gradient(out).sum()) / max(float(energy_gradient(img).sum()), EPS)
-```
-
-**Result:** the gap collapsed to 0.9488 / 0.9490 / 0.9567 / 0.9503, consistent
-with the rest of the table — and the finding "the energy function barely matters"
-became defensible instead of contradicted by its own third column.
-
-### 5 · Raw pipes in a cell broke a markdown table — for the third time
-
-**Symptom.**
-
-```
-| Gradient |dx|+|dy| | 0.9158 | 0.9344 | ...
-```
-
-An energy function named `Gradient |dx|+|dy|` renders as five columns in a
-five-column table, with every later cell shifted left. Invisible in the source.
-
-**Cause.** `markdown_table` did not escape pipes. This is the **third** table in
-this repo it has broken — a `|A error|` header in project 04, a
-`median |t| = 18.8` value in the machine-learning repo, and now an energy name.
-
-**Fix** — [`shared/report.py:54`](../../shared/report.py#L54) — escape at the
-source rather than renaming the energy:
-
-```python
-def cell(text: str) -> str:
-    return text.replace("|", r"\|")
-```
-
-Fixing the *class* rather than the instance, with
-`test_markdown_table_escapes_pipes_in_cells_and_headers` asserting that every
-rendered row splits into the right number of columns on unescaped pipes.
-
-### 6 · A test asserted a finding on too little data — again
-
-**Symptom.** `assert 0.1172 > (5.0 * 0.0258)` — the ratio the README leads
-with, failing at 4.5×.
-
-**Cause.** The test ran on a two-image subset for speed. The spread between
-energy functions is 0.5 points over four images and **2.6 over two**, so a subset
-understates the ratio fivefold.
-
-**Fix.** That test now runs on the full image set, with the margin it actually
-has. Second time this exact mistake has appeared in this repo (project 07 has the
-other), which is why it is written down both times.
-
----
 
 ## Limitations
 

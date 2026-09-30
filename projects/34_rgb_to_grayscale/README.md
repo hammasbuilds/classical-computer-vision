@@ -167,23 +167,6 @@ on that one axis, not what it scores. What the curve bounds is the size of the
 whole argument: no reweighting of a photograph, however extreme, moves it more
 than about 10 grey levels.
 
----
-
-## The bug that made the experiment wrong
-
-The first version solved for one channel algebraically: fix green and blue, then
-`r = (target_luma − wg·g − wb·b) / wr`. For BT.709 that red comes out
-**negative**, `np.clip` pulls it to zero, and clipping a colour changes its luma
-— so the pair was no longer isoluminant at all. BT.709 scored 29.7 grey levels
-against a scene built to be invisible to it, which read as "BT.709 is better"
-and was actually "the scene was broken".
-
-`matched_luma_colour` searches the RGB cube instead, so every candidate is in
-gamut by construction, and picks the one furthest from the background.
-`test_the_isoluminant_colour_stays_in_gamut` keeps it that way.
-
----
-
 ## How the images were chosen
 
 Twelve photographs selected by `tools/select_images.py --axis colour`, which

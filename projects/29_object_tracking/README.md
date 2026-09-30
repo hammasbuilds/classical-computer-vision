@@ -87,49 +87,6 @@ Three bar charts of the same twelve runs, three different tallest bars — which
 is the result. There is no single number here that orders these trackers, and
 which one you quote decides which tracker you would ship.
 
----
-
-## One wrong line put a good tracker below the control
-
-`opencv-python-headless` does not ship KCF, CSRT or MOSSE — those live in
-`opencv-contrib` — and the trackers that *are* in core besides MIL (GOTURN,
-DaSiamRPN, Nano, Vit) are neural networks with downloaded weights. So the
-correlation filter here is **written from scratch**: MOSSE is about forty lines of
-FFT (Bolme et al., CVPR 2010), and having it is better than having a call into a
-binary.
-
-The first version scored **0.047 mean IoU with a 261-pixel centre error** — far
-below the do-nothing control — which is not what MOSSE does.
-
-```python
-response = np.real(np.fft.ifft2(H * F))
-dy, dx = np.unravel_index(np.argmax(response), response.shape)
-dy -= bh // 2          # wrong
-dx -= bw // 2
-```
-
-The target Gaussian is built with `ifftshift`, so **zero displacement is index
-(0, 0)** and the response wraps around. Subtracting half the box is what a
-*centred* target would need. Every step came out half a box off.
-
-```python
-dy = dy - bh if dy > bh // 2 else dy
-dx = dx - bw if dx > bw // 2 else dx
-```
-
-**0.047 → 0.567 mean IoU, and the best survival rate in the project.** A test now
-asserts that correlating the first patch with its own filter gives zero shift,
-which is the invariant the bug broke.
-
-Two other things in this implementation are load-bearing rather than cosmetic and
-are commented as such: the **cosine window** (the FFT treats the patch as
-periodic, so without the taper the wrap-around edge is a strong artificial
-gradient and the filter locks onto it) and the **eight small random rotations**
-used to initialise the filter (without them it is a single correlation and drifts
-on the second frame).
-
----
-
 ## Why the colour trackers fail, measured rather than asserted
 
 ![Back-projection contrast](docs/images/backprojection_contrast.png)

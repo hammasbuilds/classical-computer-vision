@@ -182,47 +182,6 @@ many photographs pass; it does not change who wins. It is the choice of *metric*
 that flips the ranking, not the choice of number — a negative result, and it
 narrows the claim usefully.
 
----
-
-## What does not explain anything
-
-![Per photograph](docs/images/compare.png)
-
-The plate spans **67× in area** across these fourteen photographs — 0.27% of the
-frame to 18.31% — and the obvious hypothesis is that this is the whole story.
-
-**It is not.** Log plate width against the number of locators that succeed gives
-**r = +0.29**.
-
-| Photograph | Plate | Share of frame | Found (IoU) | Found (coverage) |
-|---|---|---:|:--:|:--:|
-| eu10 | 78×18 | **0.27%** | 3/6 | 3/6 |
-| eu5 | 183×42 | 0.84% | 0/6 | 3/6 |
-| eu7 | 343×79 | 0.86% | 1/6 | 1/6 |
-| AYO9034 | 162×52 | 0.91% | 3/6 | 2/6 |
-| AZJ6991 | 236×76 | 1.09% | 3/6 | 0/6 |
-| eu3 | 91×21 | 1.11% | 1/6 | 1/6 |
-| eu1 | 203×46 | 1.25% | 1/6 | 2/6 |
-| FZB9581 | 258×83 | 1.31% | 2/6 | 0/6 |
-| eu6 | 96×22 | 1.39% | 1/6 | 2/6 |
-| eu11 | 122×28 | 1.47% | 1/6 | 2/6 |
-| eu9 | 131×30 | 1.54% | 0/6 | 3/6 |
-| eu8 | 303×69 | 2.67% | 4/6 | 0/6 |
-| eu2 | 139×32 | 3.07% | 3/6 | 1/6 |
-| eu4 | 505×116 | **18.31%** | 3/6 | 1/6 |
-
-The smallest plate in the set — 78×18 pixels, a quarter of a percent of the
-frame — is found by **as many locators as the largest**, which is 67 times its
-area. Whatever makes a plate hard here, it is not how big it is. Reported because
-it was the first thing worth checking and it came out flat.
-
-Note the last two columns disagreeing per photograph too: `eu9` is found by
-**0 of 6** on IoU and **3 of 6** on coverage; `eu8` is **4 of 6** and **0 of 6**.
-The two metrics do not merely rank the locators differently — they disagree about
-which *photographs* are solved.
-
----
-
 ## Try it
 
 ```bash

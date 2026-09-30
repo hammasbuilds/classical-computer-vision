@@ -52,7 +52,7 @@ of them outright.** That is the result.
 
 ---
 
-## The signature finding: the obvious metric inverts the conclusion
+## Result: the obvious metric inverts the conclusion
 
 ![Metric matrix](docs/images/metric_matrix.png)
 ![Pixels moved](docs/images/pixels_moved.png)

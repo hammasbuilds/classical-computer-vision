@@ -75,7 +75,7 @@ best on — which would have been four smooth images and no finding at all.
 **Jump to:** [What it does](#what-it-does) · 
 [Results](#results) ·
 [Run it](#run-it-yourself) · [Inference](#inference-denoise-your-own-photo) ·
-[How it works](#how-it-works) · [Problems solved](#problems-hit-and-how-they-were-solved) ·
+[How it works](#how-it-works) ·
 [Limitations](#limitations) · [Keywords](#keywords)
 
 ---
@@ -109,7 +109,6 @@ result. Fitting on half the images and scoring on the other half says which of
 those tuned numbers were real.
 
 ---
-
 
 
 ## Results
@@ -303,115 +302,6 @@ every filter here scores worse than leaving the image alone.
 A median rejects a minority of outliers and has no opinion about small errors. An
 average has no defence against outliers and is optimal against small independent
 ones. The winners in the table above follow directly.
-
----
-
-## Problems hit, and how they were solved
-
-Every entry is a real defect in this project's own code, with the symptom that
-exposed it and the measurement that confirmed the fix.
-
-### 1 · The comparison was default-against-default, which measures the defaults
-
-**Symptom.** Non-local means — the most sophisticated filter in the set — scored
-**24.48 dB** on Gaussian σ=25, *below a box blur's 25.43*. A result that would
-have been worth writing up, and was wrong.
-
-**Cause.** The main table ran every filter at its library default. OpenCV's usual
-`h=10` is set for a lower noise level than σ=25; at `h=18` the same filter scores
-26.60. The table was ranking defaults, not methods.
-
-**Fix** — [`src/denoising.py:297`](src/denoising.py#L297) — grid-search each
-filter's main parameter **per noise model** and store the result, so the central
-comparison is tuned-against-tuned:
-
-```python
-TUNED: dict[str, dict[str, tuple[str, float]]] = {
-```
-
-**Result:** the bilateral filter went from worst (26.60) to best (29.79) on
-Gaussian noise, and the comparison started being about the filters.
-
-### 2 · The grid was truncated, so "best" meant "the end of the list"
-
-**Symptom.** Three of the six best values came back at the *edge* of their grid —
-box `ksize=3` (the smallest offered), Gaussian `sigma=0.8` (the smallest),
-bilateral `sigma_color=120` (the largest).
-
-**Cause.** An optimum at a grid edge is not a result, it is a warning that the
-sweep stopped before the optimum did.
-
-**Fix** — [`src/denoising.py:240`](src/denoising.py#L240) — widen every grid until
-it brackets its optimum:
-
-```python
-"Bilateral": ("sigma_color", (15.0, 35.0, 55.0, 80.0, 120.0, 180.0, 255.0)),
-```
-
-**Result:** the bilateral optimum moved to 180 on Poisson and 255 on
-salt-and-pepper. The two that stayed at an edge — box wanting the smallest
-kernel, bilateral wanting `sigma_color=255` — are now understood rather than
-unnoticed: both are the filter asking to be switched off. `sigma_color=255`
-flattens the range weight completely and turns a bilateral filter into a plain
-Gaussian blur.
-
-### 3 · The tuned parameters were fitted on 3 images and scored on 6
-
-**Symptom.** Two filters came back with a **negative** cost-of-default: their
-"best" parameter scored *worse* than the library default. Box −0.13 dB,
-Gaussian −0.53 dB.
-
-**Cause.** `TUNED` had been filled in from a three-image run while
-`default_vs_tuned` evaluated on all six. Textbook overfitting, on a six-image
-grid search over one free parameter — which is about as small as overfitting
-gets, and it still happened.
-
-**Fix.** Two things, and the second is the more useful one. `TUNED` was
-regenerated on all six images. And the failure became a deliberate experiment —
-[`src/denoising.py:403`](src/denoising.py#L403):
-
-```python
-def transfer_check(kind: str = "gaussian", level: float = 25.0):
-```
-
-**Result:** the finding that tuning transfers for **one filter of six**, which is
-now one of the project's headlines. The bug was more informative than the fix.
-
-### 4 · The noise-model detector was fooled by the photograph
-
-**Symptom.** A test asserted that only salt-and-pepper pins pixels to 0 or 255,
-and failed: Poisson noise pinned **1.73%**.
-
-**Cause.** Two problems in one. Poisson noise clips at the top of the range in
-bright regions, so it *does* produce extremes. Worse, the raw fraction is
-dominated by image content — `astronaut` has **11.2%** of its pixels at 0 or 255
-with no noise at all, from the large black regions. `infer.py`'s detector
-thresholded at 0.5% of extreme pixels, so it would have called both a
-salt-and-pepper image.
-
-**Fix** — [`infer.py:50`](infer.py#L50) — require the extreme pixel to also
-disagree with its own 5×5 median, which separates isolated speckle from solid
-dark regions:
-
-```python
-return float((extreme & (cv2.absdiff(g, cv2.medianBlur(g, 5)) > 60)).mean())
-```
-
-Measured over six images:
-
-| noise | isolated extremes |
-|---|---:|
-| none | ≤ 0.004% |
-| Gaussian σ=25 | ≤ 0.005% |
-| Poisson λ=30 | ≤ 0.014% |
-| **Salt & pepper 6%** | **4.28% – 5.98%** |
-
-**Result:** a 300× margin instead of an overlap. The test that caught it is
-`test_only_impulse_noise_produces_ISOLATED_extreme_pixels`, and it was written to
-assert the premise of the whole project — that the three noise models differ in
-*kind* — which is why it caught a bug in a different file.
-
----
 
 ## Limitations
 

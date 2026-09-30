@@ -179,28 +179,6 @@ neighbouring samples, and noise moves it. FAST's segment test is a **vote** over
 16 pixels on a ring, and a vote needs many pixels to change before its outcome
 does. Pinned by `test_sift_is_the_least_stable_detector_under_noise`.
 
----
-
-## The measurement was wrong first, and wrong flatteringly
-
-`apply_homography` keeps the canvas size, so rotating a rectangle carries its
-corners out of view — at 45° roughly **a third of the image is gone**. The first
-version of `repeatability` scored every one of those vanished keypoints as a
-miss.
-
-A keypoint that is no longer in the picture cannot be redetected by any
-detector, so this measured the crop and reported it as a property of the method.
-Every detector's rotation curve sagged in the middle and recovered at 180°,
-which reads as a real and rather interesting result about invariance. It was the
-shape of a rotating rectangle.
-
-`shared.metrics.repeatability` now takes the second image's `shape` and excludes
-keypoints whose projection lands outside it, which is the definition Schmid et
-al. use. Pinned by
-`test_repeatability_ignores_keypoints_the_rotation_pushed_out_of_frame`.
-
----
-
 ## How the images were chosen
 
 Twelve photographs selected by `tools/select_images.py --axis edges`, which

@@ -148,32 +148,6 @@ The error is systematically larger away from the axes, which is the radial
 sampling of a rectangular spectrum showing through; it is reported rather than
 corrected.
 
-### This estimator was wrong twice over, and the two errors cancelled
-
-The first version scored **3.25° at 90° and 50–80° everywhere else**. One good
-number among five bad ones reads as a method that works and an experiment that
-is noisy. It was neither.
-
-**It used `cv2.HoughLines` on a thresholded spectrum.** Hough found the FFT's own
-axis-aligned and diagonal structure rather than the sinc stripes, so the answer
-snapped to multiples of 45° — exact at 0, 45, 90 and 135, and 20°+ out between:
-
-| True angle | 0° | 30° | 45° | 60° | 90° | 120° | 135° |
-|---|---:|---:|---:|---:|---:|---:|---:|
-| Raw estimate | 89° | 142° | 135° | 135° | 83° | 45° | 45° |
-
-**And the perpendicular was never taken**, so the number reported was the stripe
-orientation, not the blur direction — a systematic 90° offset.
-
-At a true angle of 90° the missing offset and the Hough snapping cancel exactly,
-and the estimator posts 3.25°. Every other angle carries both errors. The fix is
-a radial average of the log spectrum with no preferred direction, plus the
-perpendicular. Pinned by
-`test_the_blind_angle_estimator_works_at_angles_that_are_not_multiples_of_45`,
-which deliberately tests 15°, 30°, 120° and 160° — all off the 45° grid.
-
----
-
 ## Defocus behaves the same way
 
 | Method | PSNR (dB) | SSIM |

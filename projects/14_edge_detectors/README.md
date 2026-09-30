@@ -119,39 +119,6 @@ Each gradient operator gets its **own** threshold sweep. Handing them all the
 same number would compare how each normalises its magnitude, not how well each
 finds an edge.
 
----
-
-## Problems hit, and how they were solved
-
-### A flat image with an edge at every pixel
-
-`_magnitude` normalised by `max(m.max(), EPS)` — the usual defensive idiom for
-avoiding a divide by zero. On an image with **no edges** it does the opposite of
-what it looks like.
-
-The convolution of a uniform region is not exactly zero in float32; it is a few
-times `1e-8` of rounding. That is smaller than `EPS = 1e-6`, so the guard
-divides by `EPS` and scales pure rounding up by two orders of magnitude.
-
-```python
-# WRONG - on a blank image, returns a constant 0.119 everywhere
-return m / max(float(m.max()), EPS)
-
-# RIGHT - no gradient means no edges
-peak = float(m.max())
-if peak <= EPS:
-    return np.zeros_like(m)
-return m / peak
-```
-
-Measured: a uniform mid-grey image came back with a **constant magnitude of
-0.119 at every pixel** — a detector confidently reporting an edge across a blank
-frame, with no error and no warning. It was found by
-`test_a_flat_image_has_no_edges`, which exists because "does nothing on nothing"
-is the cheapest property to check and the easiest to get wrong.
-
----
-
 ## Limitations
 
 * **The scene is synthetic shapes.** Exact ground truth is the point, and the

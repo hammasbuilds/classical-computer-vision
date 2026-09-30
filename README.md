@@ -33,7 +33,7 @@ hash, because filenames cannot: every image is renamed to something descriptive
 on the way in.
 
 **Jump to:** [Why](#why-this-exists) · [The rules](#the-rules) ·
-[Projects](#projects) · [Findings so far](#findings-so-far) ·
+[Projects](#projects) · [Findings so far](#results-so-far) ·
 [Quick start](#quick-start) · [The shared layer](#the-shared-layer) ·
 [Tests](#running-the-tests)
 
@@ -196,7 +196,7 @@ all. Each ✅ row is reproducible with `python run.py` inside the project.
 
 ---
 
-## Findings so far
+## Results so far
 
 ### 01 · Document scanner
 

@@ -83,47 +83,6 @@ scene candidate solid shapes · few and small         keep — best IoU 1.000, w
 scene candidate thin strokes · sparse                keep — best IoU 1.000, worst 0.039, oracle 1.000  [imbalanced]
 ```
 
----
-
-## Problems hit, and how they were solved
-
-### 1 · The scene could not show what adaptive thresholding is for
-
-The project began with one scene kind: filled circles. Swept across every
-illumination level, the adaptive family scored **0.2 – 0.45 and never won**, and
-the obvious conclusion was that local thresholding simply loses.
-
-That conclusion was about geometry, not lighting. A 31 px window inside a filled
-circle sees no background, so the local threshold lands on the foreground's own
-noise. **The experiment could not demonstrate the thing the methods exist for**,
-and a sweep over the wrong axis looked like a result.
-
-Adding a `kind="thin"` scene — 3 px strokes, narrower than the window — produced
-the crossover in one run. The finding is better for it: not *adaptive wins under
-bad light*, but *adaptive wins when the foreground is thinner than the window*,
-which is a statement you can check before choosing a method.
-
-### 2 · The oracle was a floor instead of a ceiling
-
-`thresh_best_global` searched every cut from 1 to 254 — in one direction:
-
-```python
-# WRONG - this scene is dark-on-light, so no value of t expresses the answer
-score = iou((gray > t).astype(np.uint8) * 255, truth)
-```
-
-"Foreground is above the cut" is a convention, not a property:
-`cv2.THRESH_BINARY` and `THRESH_BINARY_INV` are the same operation. Searching
-one polarity, the oracle settled on a degenerate threshold scoring **0.122 IoU**
-— *below every method it exists to bound*.
-
-A ceiling that sits under the thing it bounds is worse than no ceiling. It made
-every row read "no global threshold was available", which is the opposite of
-what row 2 actually shows. Pinned by
-`test_the_oracle_is_a_ceiling_over_every_global_method`.
-
----
-
 ## Limitations
 
 * **The local methods use one window size (31 px) and one `k`.** That window is

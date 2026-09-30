@@ -150,7 +150,7 @@ is the fix, and it turns an uninformative control into the section above.
 
 ---
 
-## PSNR: the usual complaint is wrong, and there is a worse one
+## On PSNR
 
 ![PSNR](docs/images/psnr.png)
 
