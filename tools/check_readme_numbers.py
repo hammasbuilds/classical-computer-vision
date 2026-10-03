@@ -24,7 +24,7 @@ import os
 import re
 import sys
 
-NUM = re.compile(r"-?\d+(?:\.\d+)?")
+NUM = re.compile(r"-?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?")
 
 
 def walk(obj):
@@ -47,7 +47,16 @@ def walk(obj):
 
 
 def decimals(tok):
-    return len(tok.split(".")[1]) if "." in tok else 0
+    """Decimal places the literal commits to, counting an exponent.
+
+    1.4e-3 states four decimal places, not one: rounding the stored value to one would
+    make 1.4e-3 match 0.0007 as easily as 0.0014.
+    """
+    mant, _, exp = tok.lower().partition("e")
+    d = len(mant.split(".")[1]) if "." in mant else 0
+    if exp:
+        d -= int(exp)
+    return max(d, 0)
 
 
 def matches(tok, values):
