@@ -13,8 +13,17 @@ import sys
 import numpy as np
 import pytest
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import run as R                                              # noqa: E402
+# Every project keeps its code in its own run.py, so a plain `import run`
+# resolves to whichever project pytest collected first and the rest of the
+# suite silently tests the wrong module. Load it by path under a unique name.
+import importlib.util                                         # noqa: E402
+
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_spec = importlib.util.spec_from_file_location("run_marching_cubes",
+                                               os.path.join(_HERE, "run.py"))
+R = importlib.util.module_from_spec(_spec)
+sys.modules[_spec.name] = R
+_spec.loader.exec_module(R)
 
 
 def test_analytic_volume_and_area_are_the_known_closed_forms():
