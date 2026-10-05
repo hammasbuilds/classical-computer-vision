@@ -39,6 +39,12 @@ on the way in.
 
 ---
 
+
+> **3D moved out.** The six 3-D projects that were numbered 58-63 now live in
+> [3d-computer-vision](https://github.com/hammasbuilds/3d-computer-vision), together
+> with the learned 3-D work, so that 3-D is findable in one place rather than split
+> by technique. This repo stays 2-D classical computer vision.
+
 ## Why this exists
 
 Classical computer vision is usually taught as a list of function calls: *here is
